@@ -1,0 +1,297 @@
+```{r}
+#설치 오류 해결
+#install.packages('installr')
+#library(installr)
+#version
+#check.for.updates.R()
+#updateR()
+```
+
+
+```{r}
+###CHAPTER 1###
+
+#문제 1
+#install.packages("tidyverse")
+#install.packages("data.table")
+library(tidyverse)
+library(data.table)
+
+data <- fread("train.csv")
+summary(data)
+
+#View(data)
+```
+
+```{r}
+#문제2
+data <- data[,-c(1,2)]
+#View(data)
+```
+
+```{r}
+#문제3
+lapply(data, n_distinct)
+```
+
+```{r}
+#문제 4
+names(data)[8] <- 'Time Convenient'
+names(data)[21] <- 'Departure Delay'
+names(data)[22] <- 'Arrival Delay'
+names(data)[c(8,21,22)]
+
+data$'Customer Type'[data$'Customer Type' == 'Loyal Customer'] <- 'Loyal'
+data$'Customer Type'[data$'Customer Type' == 'disloyal Customer'] <- 'Disloyal'
+
+data$'Type of Travel'[data$'Type of Travel' == 'Personal Travel'] <- 'Personal'
+data$'Type of Travel'[data$'Type of Travel' == 'Business travel'] <- 'Business'
+```
+
+```{r}
+#문제 5
+data$Age <- as.numeric(data$Age)
+data$'Flight Distance' <- as.numeric(data$'Flight Distance')
+data$'Departure Delay' <- as.numeric(data$'Departure Delay')
+data$'Arrival Delay' <- as.numeric(data$'Arrival Delay')
+
+ct <- names(data)[-c(3,6,21,22)]
+for (c in ct){
+  data[[c]] <- as.factor(data[[c]])
+}
+```
+
+```{r}
+#문제 6
+Na <- data.frame(names(data), colSums(is.na(data)))
+names(Na) <- c('col', 'na')
+#View(Na)
+Na['total'] = lapply(data, length)
+Na['pct'] = round(Na$na/Na$total,3)
+
+pctf <- function(x){
+  if(is.numeric(x)){
+    ifelse(is.na(x), x, paste0(x*100, "%"))
+  } else x
+}
+
+ppct <- c()
+for (i in Na['pct']){
+  ppct <- c(ppct, pctf(i))
+  return(ppct)
+}
+
+Na['ppct'] <- ppct
+
+ggplot(data=Na, aes(x=col, y=na, fill=na)) + geom_bar(stat="identity") + coord_flip()+
+  geom_text(aes(x=col, label=ppct), vjust=0.5)+
+  theme_classic()+
+  scale_fill_gradient(low='green', high='red')+
+  ylab('Number of NA')+
+  xlab('Column')
+```
+
+```{r}
+#문제 7
+data$'Arrival Delay' <- ifelse(is.na(data$'Arrival Delay'), median(data$'Arrival Delay', na.rm = T), data$'Arrival Delay')
+
+sum(is.na(data$'Arrival Delay'))
+```
+
+```{r}
+#문제 8
+#5번이랑 같은 내용 같은데..
+
+str(data)
+```
+
+```{r}
+#문제 9
+corr <- cor(data[,c(3,6,21,22)], use = "all.obs", method = "pearson")
+corr
+
+#install.packages('corrplot')
+library(corrplot)
+corrplot(corr, method='shade', order='AOE', diag=FALSE, title = 'Correlation of Numeric Variables')
+```
+
+```{r}
+ggplot(data, aes(x=data$'Arrival Delay', y=data$'Departure Delay'))+
+  geom_point(color='skyblue')+
+  xlab('Arrival Delay')+
+  ylab('Departure Delay')+
+  geom_smooth(method='lm', color='red')
+```
+
+```{r}
+#문제 10
+fl <- function (x){
+  return(length(levels(x)))
+}
+lapply(data, fl)
+
+lv5 <- data[,c(7:20)]
+#View(lv5)
+
+glv5 <- gather(data=lv5, key='col', value='value')
+#View(glv5)
+glv5 <- glv5 %>% group_by(col, value) %>% summarise(count=n())
+
+ggplot(glv5, aes(x=value, y=count, fill=value))+
+  geom_bar(stat="identity")+
+  facet_wrap(facets=~col, scales='free')+
+  scale_fill_brewer(palette = "Set3")
+```
+
+```{r}
+lv3 <- data[, c(1,2,4,5)]
+#View(lv3)
+glv3 <- gather(data=lv3, key='col', value='value')
+#View(glv3)
+glv3 <- glv3 %>% group_by(col, value) %>% summarise(count=n())
+
+ggplot(glv3, aes(x=value, y=count, fill=value))+
+  geom_bar(stat="identity")+
+  facet_wrap(facets=~col, scales='free', nrow=1)+
+  scale_fill_brewer(palette = "Set3")
+```
+
+```{r}
+#문제 11
+data11 <- data #수치형으로 바꿔줄거라 다른 df로 복사
+ct2 <- names(data)[-c(3,6,21,22,23)]
+for (c in ct2){
+  data11[[c]] <- as.numeric(data11[[c]])
+}
+
+corr <- cor(data11[,-c(3,6,21,22,23)], use = "all.obs", method = "spearman")
+corr
+
+corrplot(corr, method='shade', order='AOE', tl.pos='n', diag=FALSE, title='Correlation of Categorical Variables')
+#tl.pos='n' 레이블 없애기
+```
+
+```{r}
+#문제 12
+# Inflight service와 Baggage handling이 높은 양의 상관관계를 가진다
+# Cleanliness와 Food and drink, Seat comfort, Inflight entertainment가 높은 양의 상관관계를 가진다
+```
+
+```{r}
+#문제 13
+data13 <- data %>% group_by(satisfaction) %>% summarise(count=n(), percent=round(count/length(data$satisfaction), 3))
+#View(data13)
+data13['ymax'] <- c(0.567, 1)
+data13['ymin'] <- c(0, 0.567)
+label <- c()
+for (i in data13['percent']){
+  label <- c(label, pctf(i))
+  return(label)
+}
+data13['label'] <- label
+data13['labelpos'] <- c(0.283, 0.783)
+
+ggplot(data13, aes(xmin=2, ymin=ymin, xmax=4, ymax=ymax, fill=satisfaction))+
+  geom_rect()+
+  scale_fill_brewer(palette = "Pastel1")+
+  coord_polar(theta = "y")+
+  xlim(c(0,4))+
+  theme(axis.text.y=element_blank())+
+  theme(axis.text.x=element_blank())+
+  ggtitle("승객 만족도")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+```{r}
+#문제 14
+d14 <- data
+ct3 <- names(data)[c(6,21,22)]
+for (c in ct3){
+  d14[[c]] <- as.numeric(d14[[c]])
+}
+
+d14 <- d14 %>% group_by(satisfaction, Gender) %>% summarise(count = n(), avg.fd = mean('Flight Distance', na.rm=T), avg.dd = mean('Departure Delay',na.rm=T), avg.ad = mean('Arrival Delay', na.rm=T))
+#View(d14)
+```
+
+
+
+```{r}
+###CHAPTER 2###
+
+#문제 1
+df <- data #헷갈리니까 복사
+df <- df[,-22]
+```
+
+```{r}
+#문제 2
+scale(df[,c(3,6,21)], center=TRUE, scale=TRUE)
+```
+
+```{r}
+#문제 3
+levels(df$satisfaction) <- c('neutral or dissatisfied', 'satisfied', 0, 1)
+levels(df$satisfaction)
+  
+df$satisfaction[df$satisfaction == 'satisfied'] <- 1
+df$satisfaction[df$satisfaction == 'neutral or dissatisfied'] <- 0
+#View(df)
+
+library(gdata)
+
+df$satisfaction <- drop.levels(df$satisfaction)
+levels(df$satisfaction)
+```
+
+```{r}
+#문제 4
+ct <- names(df)[-c(3,6,21,22)]
+for (c in ct){
+  df[[c]] <- as.factor(df[[c]])
+}
+str(df)
+
+#install.packages('caret')
+library(caret)
+
+dmy <- dummyVars(~., data = df[,-22])
+df2 <- data.frame(predict(dmy, newdata = df))
+df2['satisfaction'] <- df[,22]
+#View(df2)
+```
+
+```{r}
+#문제 5
+train <- createDataPartition(df2[,96],
+                             p=0.7, list=F)
+
+length(train)
+df2[train,]
+
+```
+
+```{r}
+#문제 6
+m <- glm(data=df2[train,], formula=satisfaction~., family='binomial')
+summary(m)
+```
+
+```{r}
+#문제 7
+pd <- predict(m, newdata=df2[-train,])
+predicted <- ifelse(pd > 0.5, 1, 0)
+predicted
+```
+
+```{r}
+#문제 8
+pdt <- as.factor(predicted)
+actual <- as.factor(df2[-train,]$satisfaction)
+
+levels(pdt)
+levels(actual)
+
+confusionMatrix(pdt, actual)
+```
+
