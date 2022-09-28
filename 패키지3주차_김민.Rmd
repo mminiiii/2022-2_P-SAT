@@ -1,0 +1,278 @@
+---
+title: "패키지 3주차_김민"
+author: "Kim Min"
+date: "2022-09-27"
+output: html_document
+---
+
+CHAPTER 1
+
+```{r}
+#문제 1
+library(data.table)
+library(tidyverse)
+data <- fread('data.csv', na.strings=c("", NA))
+#View(data)
+```
+
+```{r}
+#문제 2
+data <- data[,-1]
+colSums(is.na(data))
+data <- data[,-16]
+names(data)
+```
+
+```{r}
+#문제 3
+lapply(data, n_distinct)
+```
+
+```{r}
+#문제 4
+data <- data %>% filter(!(child_num >= 6))
+data$child_num[data$child_num >= 6]
+```
+
+```{r}
+#문제 5
+data <- data[,-12]
+```
+
+```{r}
+#문제 6
+data$age = floor(data$DAYS_BIRTH / 365)*(-1)
+data <- data[, -10]
+```
+
+```{r}
+#문제 7
+data$DAYS_EMPLOYED[data$DAYS_EMPLOYED > 0] <- 0
+data$work_year = floor(data$DAYS_EMPLOYED / 365)*(-1)
+data <- data[, -10]
+```
+
+```{r}
+#문제 8
+data$begin_month <- data$begin_month*(-1)
+data$DAYS_EMPLOYED[data$DAYS_EMPLOYED < 0]
+```
+
+```{r}
+#문제 9
+nmr <- names(data)[c(4,5,13,14,16,17)]
+
+for (c in nmr){
+  data[[c]] <- as.numeric(data[[c]])
+}
+
+ct <- names(data)[-c(4,5,13,14,16,17)]
+
+for (c in ct){
+  data[[c]] <- as.factor(data[[c]])
+}
+
+str(data)
+```
+
+```{r}
+#문제 10
+library(corrplot)
+
+corr_nmr <- cor(data[,c(4,5,13,14,16,17)], use = "all.obs", method = "pearson")
+
+corrplot(corr_nmr, method='shade', diag=F, title = 'Correlation of Numeric Variables', tl.cex = 0.8, mar=c(0,0,2,0), addCoef.col = 1, number.cex = 0.6)
+
+#family_size와child_num은 높은 양의 선형 상관관계를 보인다
+```
+```{r}
+#문제 10
+data10 <- data #수치형으로 바꿔줄거라 다른 df로 복사
+for (c in ct){
+  data10[[c]] <- as.numeric(data10[[c]])
+}
+
+corr_ct <- cor(data10[,-c(4,5,13,14,16,17)], use = "all.obs", method = "pearson")
+
+corrplot(corr_ct, method='shade', diag=F, title = 'Correlation of Categorical Variables', tl.cex = 0.6, mar=c(0,0,2,0), addCoef.col = 1, number.cex = 0.3)
+
+#범주형 변수들은 서로 선형 상관관계가 높지 않다.
+
+data <- data[,-4]
+```
+
+CHAPTER2
+
+```{r}
+#문제 0
+#install.packages('cluster')
+library(cluster)
+
+#install.packages('Rtsne')
+library(Rtsne)
+
+data2 = data
+#View(data2)
+```
+
+```{r}
+#문제 1
+data2 <- data2[,-c(2,3,6,7,8,9,10,11,14)]
+```
+
+```{r}
+#문제 2
+library(caret)
+
+nmr_scaled <- preProcess(x = data2[,-c(1,3)], method = 'range')
+data2 <- predict(nmr_scaled, data2)
+```
+
+```{r}
+#문제 3
+set.seed(2930)
+data2_tr <- sample_n(data2, 5000)
+```
+
+```{r}
+#문제 4
+gowerd <- as.matrix(daisy(data2_tr, metric="gower", stand=F))
+```
+
+```{r}
+#문제 4-1
+print("gower distance: bool, 범주형, 수치형 자료를 다룰 수 있음, 두 변수가 얼마나 다른지를 측정하는 척도")
+print("PAM: 클러스터의 비유사성의 평균이 모든 객체들에 대해 최소가 되는 medoid을 기준으로 객체들을 분할하는 군집분석 방법")
+```
+
+```{r}
+#문제 5
+which(gowerd == max(gowerd), arr.ind=T)
+#가장 유사한 관측치 조합: 4248, 271 (유사도:0.7626894)
+which(gowerd == min(gowerd), arr.ind=T) %>% head()
+#유사도가 0인 관측치 조합은 많음
+```
+
+```{r}
+#문제 6
+clusters = c(2:10)
+sil <- numeric(9)
+cnt = 1
+
+for (k in clusters){
+  PAM <- pam(gowerd, k, diss=T, stand=F)
+  sil[[cnt]]<-PAM$silinfo$avg.width
+  cnt = cnt+1
+}
+
+plot(clusters, sil, type = "o", xlab='Number of clusters', ylab='Silhouette avg.width', xlim=c(0,10), cex=0.5, cex.lab=0.7, cex.axis=0.5)
+```
+
+```{r}
+#문제 7
+clst <- pam(gowerd, 6, diss=T, stand=F)
+```
+
+```{r}
+#문제 8
+clst$clusinfo #summary 대신..
+
+barplot(clst$clusinfo[,1], names.arg=c(1,2,3,4,5,6), xlab='Cluster', ylab='Number of observations', cex.lab=0.7, cex.axis=0.7)
+```
+
+```{r}
+#문제 9
+r_gowerd = Rtsne(gowerd, is_distance = T)
+
+r_gowerd_y <- as.data.frame(r_gowerd$Y)
+r_gowerd_y$y_pred <- clst$clustering
+names(r_gowerd_y)[1] <- 'X'
+names(r_gowerd_y)[2] <- 'Y'
+```
+
+```{r}
+#문제 10
+ggplot(r_gowerd_y, aes(x=X, y=Y, color=as.factor(y_pred)))+
+  geom_point(size=0.5)+
+  ggtitle('Visualization of Clusters')+
+  theme(plot.title = element_text(hjust = 0.5))+
+  scale_colour_discrete(name="cluster")
+```
+
+```{r}
+#문제 11
+print("왼쪽의 작은 그룹이 제대로 분류되지 않은 것 같다. 전처리 과정에서 x변수를 임의로 제거하지 않았다면 더 좋은 성능이 나왔을 것 같다.")
+```
+
+CHAPTER 3
+
+```{r}
+#문제 0
+#install.packages('e1071')
+library(e1071)
+```
+
+```{r}
+#문제 1
+data3 <- fread('data.csv', na.strings=c("", NA))
+data3 <- data3[,-c(1, 17, 13, 3, 4, 7, 8, 9, 10, 14, 15, 16)]
+data3$DAYS_BIRTH = floor(data3$DAYS_BIRTH / 365)*(-1)
+names(data3)[4] <- 'age'
+data3$DAYS_EMPLOYED[data3$DAYS_EMPLOYED >= 0] <- 0
+data3$DAYS_EMPLOYED[data3$DAYS_EMPLOYED < 0] <- 1
+data3 <- data3 %>% filter(!(child_num >= 6))
+data3$begin_month <- data3$begin_month*(-1)
+ct3 <- names(data3)[c(1,5,8)]
+for (c in ct3){
+  data3[[c]] <- as.factor(data3[[c]])
+}
+#view(data3)
+```
+
+```{r}
+#문제 2
+set.seed(2930)
+idx_tr <- sample(1:nrow(data3), size=nrow(data3)*0.7)
+train <- data3[idx_tr, ]
+test <- data3[-idx_tr, ]
+```
+
+```{r}
+#문제 3
+print("formula: 종속변수 ~ 독립변수 / data: 학습할 데이터 / type: SVM 수행 방법 / kernel: 사용할 커널 종류")
+```
+
+```{r}
+#문제 4
+md <- svm(formula = gender ~ ., data = train, type = 'C-classification', kernel = 'radial', gamma = 0.1, cost = 10)
+
+y_pred4 <- predict(md, test)
+
+confusionMatrix(y_pred4, test$gender)
+```
+
+```{r}
+#문제 5
+tuned <- tune(svm, gender ~ ., data = train, ranges = list(cost=c(0.1, 1), gamma=c(0.1,1), kernel=c('radial', 'linear')))
+
+attributes(tuned)
+summary(tuned)
+```
+
+```{r}
+#문제 6
+md6 <- svm(formula = gender ~ ., data = train, type = 'C-classification', kernel = 'radial', gamma = 1, cost = 1)
+
+y_pred <- predict(md6, test)
+test$y_pred <- y_pred
+
+#정확도 확인
+confusionMatrix(y_pred, test$gender)
+
+ggplot(test, aes(x=age, y=begin_month, z=as.factor(y_pred), color=as.factor(y_pred)))+
+  geom_point(size=0.5)+
+  ggtitle('Visualization of SVM with best parameters')+
+  theme(plot.title = element_text(hjust = 0.5))+
+  scale_colour_discrete(name="gender")
+```
+
